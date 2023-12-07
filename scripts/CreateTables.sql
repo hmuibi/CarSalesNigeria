@@ -120,28 +120,42 @@ ORDER BY reg_city
 
 /*This second kicks off the exploration portion of this project*/
 
+/*Used Cars Section*/
 -- ** 1. What percentage is brand new vs used? 
 SELECT COUNT(*) FROM #FinalTable WHERE condition IN ('Nigerian Used', 'Foreign Used') --2871
 SELECT COUNT(*) FROM #FinalTable WHERE condition IN ('Brand New') --23
 
 
--- Delving into used cars 
---This shows that most of the used cars bought in nigeria are not imported
+-- ** 2. Delving into used cars, what portion is Nigerian used vs Foreign used? Foreign used means imported for selling purposes
+--This shows that most of the used cars bought in nigeria (when this data was collected) were not imported
 SELECT COUNT(*) FROM #FinalTable WHERE condition IN ('Nigerian Used') --2374
 SELECT COUNT(*) FROM #FinalTable WHERE condition IN ('Foreign Used') --497
 
---However, further exploration shows that although at the time of buying the car, it was not imported but it was 
+-- ** 3. What segments make up the Nigerian used cars section? i.e. was the seller the first owner of the car or also bought it from a previous owner
 SELECT * FROM #FinalTable WHERE condition IN ('Nigerian Used')
+--The result shows that 65% of the cars were bought from a previous owner, 42% were imported and only 3% was classified as brand new
 SELECT bought_condition, COUNT(*) FROM [dbo].[carsalesnigeria] WHERE condition IN ('Nigerian Used') GROUP BY bought_condition
-SELECT fuel_type, COUNT(*) FROM #FinalTable WHERE condition IN ('Nigerian Used') GROUP BY fuel_type
-SELECT fuel_type, COUNT(*) FROM #FinalTable WHERE condition IN ('Foreign Used') GROUP BY fuel_type
 
-SELECT * FROM #FinalTable
---Let us determine what states have the most activity in car sales
---No surprises that Lagos has the highest unmber of cars bought with Abuja falling in second place.
---What is suprising is that Oyo falls in third place
+--** 4a. What are vehicle classification by propulsion systems for the Nigerian used cars and Foreign used cars?
+SELECT * FROM #FinalTable WHERE condition IN ('Nigerian Used')
+--The result shows that Petrol fueled cars dominate the number of Nigerian used cars bought with 99% and the closest in line are Hybrid cars with less than 1%
+SELECT fuel_type, Records, CAST (CAST(records AS DECIMAL(17,2))/CAST(A.totalcount AS DECIMAL(17,2)) AS DECIMAL(17,7))* 100 FROM (
+SELECT fuel_type, COUNT(*) AS Records, SUM(COUNT(*)) OVER() AS totalcount FROM #FinalTable WHERE condition IN ('Nigerian Used') GROUP BY fuel_type
+)A 
+
+--** 4b. Same question but for Foreign used cars
+SELECT * FROM #FinalTable WHERE condition IN ('Foreign Used')
+--The result shows that Petrol fueled cars dominate the number of Foreign used cars bought with 98.5% and the closest in line are Hybrid cars with less than 1%
+SELECT fuel_type, Records, CAST (CAST(records AS DECIMAL(17,2))/CAST(A.totalcount AS DECIMAL(17,2)) AS DECIMAL(17,7))* 100 FROM (
+SELECT fuel_type, COUNT(*) AS Records, SUM(COUNT(*)) OVER() AS totalcount FROM #FinalTable WHERE condition IN ('Foreign Used') GROUP BY fuel_type
+)A 
+
+--** 5. What states have the most activity in car sales?
+--The result : No surprises that Lagos has the highest unmber of cars bought with Abuja falling in second place.
+--The surprising part for me is that Oyo came in third place
 SELECT reg_state, COUNT ( reg_state) FROM #FinalTable GROUP BY reg_state ORDER BY COUNT ( reg_state)
 
+--** 4b. What states have the most activity in car sales?
 --Looking at Oyo's data, as suspected and from driving around Nigeria, Toyota represents 47% of cars bought and registered in Oyo state with 128 out of 270
 --with a close second being Honda with only 24 cars sold and registered. 
 --Oyo has 27 different types of cars
