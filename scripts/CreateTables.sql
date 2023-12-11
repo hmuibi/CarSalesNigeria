@@ -1,12 +1,19 @@
 /*
-Car Sales in Nigeria 
-Author: Hauwa M
-Data Source: https://www.kaggle.com/datasets/oyekanmiolamilekan/nigeria-car-sales-dataset
-File name: Createtables.sql
-Project Description: This file documents create statements needed to analyze the car sales 
-data in Nigeria, the cleaning process, and findings based on the data collected. 
+		Project Name: Car Sales in Nigeria 
+		Author: Hauwa M
+		Data Source: https://www.kaggle.com/datasets/oyekanmiolamilekan/nigeria-car-sales-dataset
+		File name: Createtables.sql
+		Project Description: This file documents create statements needed to analyze the car sales 
+		data in Nigeria, the cleaning process, and findings based on the data collected. 
 */
 
+/*		Facts: There are 2,894 rows in the data set downloaded in August 2023 via the source listed above.
+		The year of manufacture spans from 1988 to 2023.
+		Goal: The goal of this project is for exploratory purposes to better understand car buying trends in Nigeria
+		over the period when this data was collected. 
+		Limitations: There are some nulls in vital fields like mileage, fuel_type, etc. 
+		There are also some questionable/erroneous values in the mileage field, an example was 7,402,6754
+*/
 --Create the schema for the table for importing data
 CREATE SCHEMA dbo GO;
 
@@ -45,11 +52,10 @@ GO
 --I was using sql server so I imported data using the the SQL wizard
 --More info. can be found here ->https://learn.microsoft.com/en-us/sql/relational-databases/import-export/import-flat-file-wizard?view=sql-server-ver16
 
-
 --Once the data has been imported, verify that you have the anticipated data
-SELECT * FROM dbo.carsalesnigeria --there are 2894 records in the table
+SELECT * FROM dbo.carsalesnigeria ORDER BY mileage--there are 2894 records in the table
 
---Cleaning the data
+			/*****************************************Data Cleaning*****************************************/
 DROP TABLE IF EXISTS #CleaningRegCity
 --The first step is to make the reg_city readable, I chose to make it camel case 
 SELECT 
@@ -61,12 +67,11 @@ INTO #CleaningRegCity
 FROM dbo.carsalesnigeria
 
 --SELECT * FROM #CleaningRegCity
--- condition IN ('Nigerian Used', 'Foreign Used') ORDER BY mileage
 
 --Second step in cleaning is to correctly deduce the region's state using the region field so as to identify the volume by states in Nigeria.
 --There are only 36 states in Nigeria so it was not terrible to write a case statement, an alternative to this would be to store the 36 states in a list
 --and then deduce the state by checking the region against the stored list. I chose to go the case statement route. 
---After the deduction, the new records are dumped into a temp table
+--After cleaning, the new records are dumped into a temp table
 DROP TABLE IF EXISTS #FinalTable
 SELECT [car_sale_id], [car_id], [description], [amount], [region], [make], [model], [year_of_man], [color], 
 [condition], [mileage], [engine_size], [selling_condition], [bought_condition], [trim], [drive_train], 
@@ -111,20 +116,19 @@ WHEN region LIKE '%Zamfara%' THEN 'Zamfara'
 END AS reg_state INTO #FinalTable
 FROM #CleaningRegCity
 
---Validation after data clean up and validation against the states in Nigeria
+--Validating after data clean up and checking against the region field to validate states
 --The original field reg_city has erroneous/incomplete data which necessitated going back to the original field "region" to determine state and city
 --The check below validates that the new field deduced in the temp table above is relying on the original field "region"
 SELECT * FROM #FinalTable 
 WHERE region  NOT LIKE '%' + reg_state + '%' 
 ORDER BY reg_city
 
-/*This second kicks off the exploration portion of this project*/
+			/*****************************************Data Exploration*****************************************/
 
-/*Used Cars Section*/
+			/*******Used Cars Section*********/
 -- ** 1. What percentage is brand new vs used? 
 SELECT COUNT(*) FROM #FinalTable WHERE condition IN ('Nigerian Used', 'Foreign Used') --2871
 SELECT COUNT(*) FROM #FinalTable WHERE condition IN ('Brand New') --23
-
 
 -- ** 2. Delving into used cars, what portion is Nigerian used vs Foreign used? Foreign used means imported for selling purposes
 --This shows that most of the used cars bought in nigeria (when this data was collected) were not imported
@@ -150,61 +154,53 @@ SELECT fuel_type, Records, CAST (CAST(records AS DECIMAL(17,2))/CAST(A.totalcoun
 SELECT fuel_type, COUNT(*) AS Records, SUM(COUNT(*)) OVER() AS totalcount FROM #FinalTable WHERE condition IN ('Foreign Used') GROUP BY fuel_type
 )A 
 
---** 5. What states have the most activity in car sales?
+--** 5. What states have the most activity in used car sales?
 --The result : No surprises that Lagos has the highest unmber of cars bought with Abuja falling in second place.
 --The surprising part for me is that Oyo came in third place
-SELECT reg_state, COUNT ( reg_state) FROM #FinalTable GROUP BY reg_state ORDER BY COUNT ( reg_state)
+SELECT reg_state, COUNT ( reg_state) AS Numberof FROM #FinalTable WHERE condition IN ('Nigerian Used') GROUP BY reg_state ORDER BY COUNT ( reg_state)
+SELECT reg_state, COUNT ( reg_state) FROM #FinalTable WHERE condition IN ('Foreign Used') GROUP BY reg_state ORDER BY COUNT ( reg_state)
 
---** 4b. What states have the most activity in car sales?
---Looking at Oyo's data, as suspected and from driving around Nigeria, Toyota represents 47% of cars bought and registered in Oyo state with 128 out of 270
---with a close second being Honda with only 24 cars sold and registered. 
---Oyo has 27 different types of cars
-SELECT make, COUNT(make) 
-FROM #FinalTable WHERE reg_state = 'Oyo' GROUP BY make ORDER BY COUNT(make)
---
-SELECT condition, COUNT(condition) 
-FROM #FinalTable WHERE reg_state = 'Oyo' GROUP BY condition ORDER BY COUNT(condition)
+--** 6a. What types of cars were bought in the used car categories?
+SELECT make, COUNT(make) AS NoOfCarsSold FROM #FinalTable WHERE condition IN ('Nigerian Used') GROUP BY make ORDER BY COUNT(make) DESC
 
-SELECT * FROM #FinalTable WHERE  reg_state = 'Oyo'
-SELECT DISTINCT condition FROM #FinalTable WHERE  reg_state = 'Oyo'
+--** 6b. What types of cars were bought in the used car categories?
+SELECT make, COUNT(make) AS NoOfCarsSold FROM #FinalTable WHERE condition IN ('Foreign Used') GROUP BY make ORDER BY COUNT(make) DESC
 
---Looking at Abuja's data, Toyota still represents the lion share with 37% of cars and not so close second being Mercedes Benz represnting 13%
---Abuja has 32 different types of cars
-SELECT make, COUNT(make) 
-FROM #FinalTable WHERE reg_state = 'Abuja' GROUP BY make ORDER BY COUNT(make)
+--** 6c. What types of used cars were bought by state?
+SELECT reg_state, COUNT(make) AS NoOfCarsSoldByState FROM #FinalTable WHERE condition IN ('Nigerian Used', 'Foreign Used') GROUP BY reg_state 
+ORDER BY COUNT(make) DESC
 
-SELECT condition, COUNT(condition) 
-FROM #FinalTable WHERE reg_state = 'Abuja' GROUP BY condition ORDER BY COUNT(condition)
+--** 6d. What types of brand new cars were bought by state?
+SELECT reg_state, COUNT(make) AS NoOfCarsSoldByState FROM #FinalTable WHERE condition IN ('Brand New') GROUP BY reg_state 
+ORDER BY COUNT(make) DESC
 
+--**7. What types of transmission make up the bought Used cars?
+SELECT transmission, COUNT(transmission) AS CountsByTransmission FROM #FinalTable WHERE condition IN ('Nigerian Used', 'Foreign Used') AND transmission IS NOT NULL 
+GROUP BY transmission
 
-SELECT DISTINCT condition FROM #FinalTable WHERE  reg_state = 'Abuja'
+			/*******New Cars Section*********/
+--**1. How many new cars were sold? 
+SELECT COUNT(*) FROM #FinalTable WHERE condition IN ('Brand New') --23
 
---Looking at Lagos, again Toyota remains undefeated with 39% of car sales while Honda the next in line represented 9%
---Lagos has the most diversity in cars bought with 36 types of cars 
-SELECT make, COUNT(make) 
-FROM #FinalTable WHERE reg_state = 'Lagos' GROUP BY make ORDER BY COUNT(make)
+--**2. What are vehicle classification by propulsion systems for Brand New cars?
+SELECT * FROM #FinalTable WHERE condition IN ('Brand New')
+--The result shows that Petrol fueled cars dominate the number of Nigerian used cars bought with 99% and the closest in line are Hybrid cars with less than 1%
+SELECT fuel_type, Records, CAST (CAST(records AS DECIMAL(17,2))/CAST(A.totalcount AS DECIMAL(17,2)) AS DECIMAL(17,7))* 100 FROM (
+SELECT fuel_type, COUNT(*) AS Records, SUM(COUNT(*)) OVER() AS totalcount FROM #FinalTable WHERE condition IN ('Brand New')
+AND fuel_type IS NOT NULL GROUP BY fuel_type
+)A 
 
-SELECT condition, COUNT(condition) 
-FROM #FinalTable WHERE reg_state = 'Lagos' GROUP BY condition ORDER BY COUNT(condition)
+--**3. What states have the most activity in Brand New cars?
+--The result : No surprises that Lagos has the highest unmber of cars bought with Abuja falling in second place.
+--The surprising part for me is that Imp came in third place.
+SELECT reg_state, COUNT ( reg_state) AS NumberofCars FROM #FinalTable WHERE condition IN ('Brand New') GROUP BY reg_state ORDER BY COUNT ( reg_state)
 
-SELECT DISTINCT condition FROM #FinalTable WHERE  reg_state = 'Lagos'
+--**4. What types of New cars were bought?
+SELECT make, COUNT(make) AS NoOfCarsSold FROM #FinalTable WHERE condition IN ('Brand New') GROUP BY make ORDER BY COUNT(make) DESC
 
+--**5. What types of New cars were bought by make and state?
+SELECT reg_state, make,  COUNT(condition) AS NoOfCarsSoldByState FROM #FinalTable WHERE condition IN ('Brand New') 
+GROUP BY reg_state, make ORDER BY reg_state
 
-/*
-Facts
-There are 2,894 rows in the data set collected in August 2023
-Goal: Exploratory data analysis to understand car buying trends in Nigeria
-Observations
---Limitations include the fact that the mileage for the brand new cars is high considering the fact that they are brand new. 
---Also according to the data, Nigerians 
-99% of car sales are not brand new, we are a used car nation - only 1 percent are brand new cars
-
-Out of the used cars, 83% of the cars are Nigerian used while 17% are foreign used
-*/
-SELECT car_sale_id, description, amount, region, make, model, 
-year_of_man, mileage, fuel_type, transmission FROM dbo.carsalesnigeria WHERE condition = 'Brand New' ORDER BY year_of_man
-
-SELECT car_sale_id, description, amount, region, make, model, 
-year_of_man, mileage, fuel_type, transmission FROM dbo.carsalesnigeria WHERE condition = 'Brand New'
-
-SELECT DISTINCT condition FROM dbo.carsalesnigeria
+--**6. What types of transmission made up the New cars that were?
+SELECT transmission, COUNT(transmission) FROM #FinalTable WHERE condition IN ('Brand New') GROUP BY transmission
